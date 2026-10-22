@@ -9,10 +9,48 @@ GitHub: xbtlin/ai-berkshire
 
 ```
 skills/          — 投研 Skill 定义（.md），复制到 ~/.claude/commands/ 使用
-tools/           — 辅助工具（financial_rigor.py 精确计算、twstock_data.py 台股FinMind取数）
+tools/           — 辅助工具（取数、精确计算、选股筛、报告抽检、回测），详见「工具清单」
 reports/         — 投资研究报告输出
 assets/          — 图片等静态资源
+logs/            — 指令日志（log-command.sh 写入，不入库）
 ```
+
+## 工具清单
+
+`tools/` 下共 11 个脚本。除 `xueqiu_scraper.py`（需 Playwright）外**全部零外部依赖**，仅用 stdlib。
+
+### 取数
+
+| 工具 | 说明 | 用法 |
+|------|------|------|
+| `ashare_data.py` | A股数据——腾讯行情 + 东方财富搜索/财务 | `quote` / `financials` / `valuation` / `search` |
+| `twstock_data.py` | 台股数据——FinMind 开放 API，覆盖上市+上柜。金额单位新台币 | `quote` / `valuation` / `financials` / `revenue`（月营收）/ `dividend` / `search` |
+| `morningstar_fair_value.py` | 抓 Morningstar 筛选器全部公允价值估计，算潜在涨幅，输出 Top 100 | 直接运行，输出到 `data/` |
+| `xueqiu_scraper.py` | 雪球用户时间线爬虫，按关键词筛本人原发言（滤掉纯转发）。Playwright 登录态复用、断点续爬 | `--user-id` `--keywords` `--output` |
+
+### 校验
+
+| 工具 | 说明 | 用法 |
+|------|------|------|
+| `financial_rigor.py` | 精确 Decimal 计算，无浮点漂移 | `verify-market-cap` / `verify-valuation` / `cross-validate` / `benford` / `calc` |
+| `report_audit.py` | 报告数据抽检：抽 15% 财务数据点与可靠信源比对，出准出/打回判决 | `extract` → Claude 取数填值 → `verdict` |
+
+### 选股与回测
+
+| 工具 | 说明 |
+|------|------|
+| `stock_screener.py` | 动量发现 + 价值验证选股筛。第一层 60日新高+放量 → 第二层 6维评分 ≥3/6 买入。信号分级：3/6 试探仓3% \| 4/6 标准仓5% \| 5-6/6 确信仓8% |
+| `momentum_backtest.py` | 上述框架回测（NVDA/AMD/MU，2022-01~2025-12），Yahoo Chart API 取价 |
+| `momentum_backtest_v2.py` | 回测 v2——NVDA 关键节点手工录入（Yahoo API 被限流），AMD/MU 读本地 JSON 日线 |
+
+### 其他
+
+| 工具 | 说明 |
+|------|------|
+| `star_history_chart.py` | 复刻 star-history.com 的 star 增长曲线 SVG（浅色/深色两版）。GitHub 已限制 stargazers 匿名读取，故自备令牌生成。依赖素材 `xkcd.woff`、`star-history-logo.png` |
+| `log-command.sh` | `user_prompt_submit` hook，把用户指令追加到 `logs/command-log.jsonl` |
+
+**凭据一律走环境变量或 `local/`（已 .gitignore），严禁提交到 git**：`FINMIND_TOKEN`（台股，可选）、`XQ_PHONE`/`XQ_PASSWORD`（雪球）、`GITHUB_TOKEN`（star 图表）。
 
 ## 报告目录结构
 
@@ -108,5 +146,7 @@ git push origin main
 - 市值必须手算校验：股价 × 总股本，与报告市值对比
 - 货币单位要明确（港币/人民币/美元/新台币），防止混淆
 - PE/ROE等指标用 tools/financial_rigor.py 精确计算
+- A股数据用 tools/ashare_data.py 获取
 - 台股数据用 tools/twstock_data.py（FinMind）获取，并按 skills/financial-data.md 台股章节交叉验证
+- 报告定稿前用 tools/report_audit.py 抽检，打回则按原因修正后重抽
 - 报告写完后主动询问是否推送到GitHub
